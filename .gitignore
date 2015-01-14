@@ -1,4 +1,5 @@
-**/_obj
+**/_obj/
+*.d
 
 # Object files
 *.o

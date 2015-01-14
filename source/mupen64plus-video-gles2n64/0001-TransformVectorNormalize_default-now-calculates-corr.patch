@@ -1,0 +1,49 @@
+From e9f249311cbd236bdc72faa6198f234c613230c4 Mon Sep 17 00:00:00 2001
+From: Ben Jude <ben.aw.jude@gmail.com>
+Date: Sat, 8 Mar 2014 13:44:17 +0800
+Subject: [PATCH] TransformVectorNormalize_default now calculates correct
+ vector
+
+Previously the vector was being transformed inplace, causing vec[1]
+and vec[2] to be calculated incorrectly. vec is now copied into floats
+x, y, z before being multiplied by the transformation matrix.
+---
+ src/3DMath.cpp |   21 ++++++++++++---------
+ 1 file changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/src/3DMath.cpp b/src/3DMath.cpp
+index bb684c7..ad879e6 100644
+--- a/src/3DMath.cpp
++++ b/src/3DMath.cpp
+@@ -16,16 +16,19 @@ static void MultMatrix_default( float m0[4][4], float m1[4][4],
+ static void TransformVectorNormalize_default(float vec[3], float mtx[4][4])
+ {
+     float len;
++    float x = vec[0];
++    float y = vec[1];
++    float z = vec[2];
+ 
+-    vec[0] = mtx[0][0] * vec[0]
+-           + mtx[1][0] * vec[1]
+-           + mtx[2][0] * vec[2];
+-    vec[1] = mtx[0][1] * vec[0]
+-           + mtx[1][1] * vec[1]
+-           + mtx[2][1] * vec[2];
+-    vec[2] = mtx[0][2] * vec[0]
+-           + mtx[1][2] * vec[1]
+-           + mtx[2][2] * vec[2];
++    vec[0] = mtx[0][0] * x
++           + mtx[1][0] * y
++           + mtx[2][0] * z;
++    vec[1] = mtx[0][1] * x
++           + mtx[1][1] * y
++           + mtx[2][1] * z;
++    vec[2] = mtx[0][2] * x
++           + mtx[1][2] * y
++           + mtx[2][2] * z;
+     len = vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2];
+     if (len != 0.0)
+     {
+-- 
+1.7.9.5
+

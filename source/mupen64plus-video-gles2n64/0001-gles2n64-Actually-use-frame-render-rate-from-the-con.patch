@@ -1,0 +1,27 @@
+From 3700527de52ff0071e647296bddfe8755e29b829 Mon Sep 17 00:00:00 2001
+From: Nebuleon Fumika <nebuleon@porygon>
+Date: Mon, 9 Jun 2014 00:45:53 +0000
+Subject: [PATCH] gles2n64: Actually use "frame render rate" from the
+ configuration.
+
+It is now passed to the FrameSkipper object as maxSkips.
+---
+ src/gles2N64.cpp |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/gles2N64.cpp b/src/gles2N64.cpp
+index 63c4218..c6d2a62 100644
+--- a/src/gles2N64.cpp
++++ b/src/gles2N64.cpp
+@@ -220,6 +220,8 @@ EXPORT int CALL RomOpen (void)
+     OGL.mustRenderDlist = false;
+ 
+     frameSkipper.setTargetFPS(config.romPAL ? 50 : 60);
++    frameSkipper.setSkips(config.autoFrameSkip,
++        config.frameRenderRate);
+     return 1;
+ }
+ 
+-- 
+1.7.9.5
+

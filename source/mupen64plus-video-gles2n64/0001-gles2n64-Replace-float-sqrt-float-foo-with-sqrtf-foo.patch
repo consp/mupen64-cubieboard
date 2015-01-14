@@ -1,0 +1,74 @@
+From 30398a8d8640456287c80cfd56af3adeaf2e2cd8 Mon Sep 17 00:00:00 2001
+From: Paul Cercueil <paul@crapouillou.net>
+Date: Wed, 4 Jun 2014 22:43:21 +0200
+Subject: [PATCH] gles2n64: Replace (float) sqrt((float) foo) with sqrtf(foo)
+
+Also factorize a bit the code.
+---
+ src/3DMath.cpp |   39 ++++++++++++++-------------------------
+ 1 file changed, 14 insertions(+), 25 deletions(-)
+
+diff --git a/src/3DMath.cpp b/src/3DMath.cpp
+index ad879e6..e104a62 100644
+--- a/src/3DMath.cpp
++++ b/src/3DMath.cpp
+@@ -13,6 +13,18 @@ static void MultMatrix_default( float m0[4][4], float m1[4][4],
+     }
+ }
+ 
++static void Normalize_default(float v[3])
++{
++    float len = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
++    if (len != 0.0f)
++    {
++        len = sqrtf( len );
++        v[0] /= len;
++        v[1] /= len;
++        v[2] /= len;
++    }
++}
++
+ static void TransformVectorNormalize_default(float vec[3], float mtx[4][4])
+ {
+     float len;
+@@ -29,35 +41,12 @@ static void TransformVectorNormalize_default(float vec[3], float mtx[4][4])
+     vec[2] = mtx[0][2] * x
+            + mtx[1][2] * y
+            + mtx[2][2] * z;
+-    len = vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2];
+-    if (len != 0.0)
+-    {
+-        len = sqrtf(len);
+-        vec[0] /= len;
+-        vec[1] /= len;
+-        vec[2] /= len;
+-    }
+-}
+-
+-static void Normalize_default(float v[3])
+-{
+-    float len;
+-
+-    len = (float)(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+-    if (len != 0.0)
+-    {
+-        len = (float)sqrt( len );
+-        v[0] /= (float)len;
+-        v[1] /= (float)len;
+-        v[2] /= (float)len;
+-    }
++    Normalize_default(vec);
+ }
+ 
+ static float DotProduct_default( float v0[3], float v1[3] )
+ {
+-    float dot;
+-    dot = v0[0]*v1[0] + v0[1]*v1[1] + v0[2]*v1[2];
+-    return dot;
++    return v0[0]*v1[0] + v0[1]*v1[1] + v0[2]*v1[2];
+ }
+ 
+ 
+-- 
+1.7.9.5
+

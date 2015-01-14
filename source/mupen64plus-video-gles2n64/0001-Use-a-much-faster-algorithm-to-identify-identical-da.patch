@@ -1,0 +1,177 @@
+From 6bea91ef2cdc7daa4e98d0169fcbcd90f13fd051 Mon Sep 17 00:00:00 2001
+From: Paul Cercueil <paul@crapouillou.net>
+Date: Mon, 20 Jan 2014 23:15:45 +0100
+Subject: [PATCH] Use a much faster algorithm to identify identical data
+
+---
+ src/CRC.cpp      |   53 ++++++++++++++++++++++++++++++++++++-----------------
+ src/CRC.h        |    5 +++--
+ src/GBI.cpp      |    2 +-
+ src/Textures.cpp |   12 ++++++------
+ src/gDP.cpp      |    4 ++--
+ 5 files changed, 48 insertions(+), 28 deletions(-)
+
+diff --git a/src/CRC.cpp b/src/CRC.cpp
+index 9ab38a4..2520558 100644
+--- a/src/CRC.cpp
++++ b/src/CRC.cpp
+@@ -48,10 +48,10 @@ void CRC_BuildTable()
+ 
+ }
+ 
+-u32 CRC_Calculate( u32 crc, void *buffer, u32 count )
++u32 CRC_Calculate(void *buffer, u32 count)
+ {
+     u8 *p;
+-    u32 orig = crc;
++    u32 crc = 0xffffffff;
+ 
+     p = (u8*) buffer;
+ 
+@@ -71,23 +71,42 @@ u32 CRC_Calculate( u32 crc, void *buffer, u32 count )
+     while (count--)
+         crc = (crc >> 8) ^ CRCTable[(crc & 0xFF) ^ *p++];
+ 
+-    return crc ^ orig;
++    return ~crc;
+ }
+ 
+-u32 CRC_CalculatePalette( u32 crc, void *buffer, u32 count )
++u32 Hash_CalculatePalette(void *buffer, u32 count)
+ {
+-    u8 *p;
+-    u32 orig = crc;
+-
+-    p = (u8*) buffer;
+-    while (count--)
+-    {
+-        crc = (crc >> 8) ^ CRCTable[(crc & 0xFF) ^ *p++];
+-        crc = (crc >> 8) ^ CRCTable[(crc & 0xFF) ^ *p++];
+-
+-        p += 6;
+-    }
+-
+-    return crc ^ orig;
++	unsigned int i;
++	u16 *data = (u16 *) buffer;
++	u32 hash = 0xffffffff;
++
++	count /= 4;
++	for(i = 0; i < count; ++i) {
++		hash += data[i << 2];
++		hash += (hash << 10);
++		hash ^= (hash >> 6);
++	}
++
++	hash += (hash << 3);
++	hash ^= (hash >> 11);
++	hash += (hash << 15);
++	return hash;
+ }
+ 
++u32 Hash_Calculate(u32 hash, void *buffer, u32 count)
++{
++	unsigned int i;
++	u32 *data = (u32 *) buffer;
++
++	count /= 4;
++	for(i = 0; i < count; ++i) {
++		hash += data[i];
++		hash += (hash << 10);
++		hash ^= (hash >> 6);
++	}
++
++	hash += (hash << 3);
++	hash ^= (hash >> 11);
++	hash += (hash << 15);
++	return hash;
++}
+diff --git a/src/CRC.h b/src/CRC.h
+index cac7750..ecb5b7f 100644
+--- a/src/CRC.h
++++ b/src/CRC.h
+@@ -2,6 +2,7 @@
+ 
+ void CRC_BuildTable();
+ 
+-u32 CRC_Calculate( u32 crc, void *buffer, u32 count );
+-u32 CRC_CalculatePalette( u32 crc, void *buffer, u32 count );
++u32 CRC_Calculate(void *buffer, u32 count);
++u32 Hash_CalculatePalette(void *buffer, u32 count);
++u32 Hash_Calculate(u32 hash, void *buffer, u32 count);
+ 
+diff --git a/src/GBI.cpp b/src/GBI.cpp
+index d24f54a..afec801 100644
+--- a/src/GBI.cpp
++++ b/src/GBI.cpp
+@@ -826,7 +826,7 @@ MicrocodeInfo *GBI_DetectMicrocode( u32 uc_start, u32 uc_dstart, u16 uc_dsize )
+     current->type = NONE;
+ 
+     // See if we can identify it by CRC
+-    uc_crc = CRC_Calculate( 0xFFFFFFFF, &RDRAM[uc_start & 0x1FFFFFFF], 4096);
++    uc_crc = CRC_Calculate(&RDRAM[uc_start & 0x1FFFFFFF], 4096);
+     LOG(LOG_MINIMAL, "UCODE CRC=0x%x\n", uc_crc);
+ 
+     for (u32 i = 0; i < sizeof( specialMicrocodes ) / sizeof( SpecialMicrocodeInfo ); i++)
+diff --git a/src/Textures.cpp b/src/Textures.cpp
+index d39f32d..e625ece 100644
+--- a/src/Textures.cpp
++++ b/src/Textures.cpp
+@@ -914,15 +914,15 @@ u32 TextureCache_CalculateCRC( u32 t, u32 width, u32 height )
+     for (y = 0; y < height; y += n)
+     {
+         src = (void*) &TMEM[(gSP.textureTile[t]->tmem + (y * line)) & 511];
+-        crc = CRC_Calculate( crc, src, bpl );
++        crc = Hash_Calculate( crc, src, bpl );
+     }
+ 
+     if (gSP.textureTile[t]->format == G_IM_FMT_CI)
+     {
+         if (gSP.textureTile[t]->size == G_IM_SIZ_4b)
+-            crc = CRC_Calculate( crc, &gDP.paletteCRC16[gSP.textureTile[t]->palette], 4 );
++            crc = Hash_Calculate( crc, &gDP.paletteCRC16[gSP.textureTile[t]->palette], 4 );
+         else if (gSP.textureTile[t]->size == G_IM_SIZ_8b)
+-            crc = CRC_Calculate( crc, &gDP.paletteCRC256, 4 );
++            crc = Hash_Calculate( crc, &gDP.paletteCRC256, 4 );
+     }
+     return crc;
+ }
+@@ -989,14 +989,14 @@ void TextureCache_UpdateBackground()
+     u32 numBytes = gSP.bgImage.width * gSP.bgImage.height << gSP.bgImage.size >> 1;
+     u32 crc;
+ 
+-    crc = CRC_Calculate( 0xFFFFFFFF, &RDRAM[gSP.bgImage.address], numBytes );
++    crc = Hash_Calculate( 0xFFFFFFFF, &RDRAM[gSP.bgImage.address], numBytes );
+ 
+     if (gSP.bgImage.format == G_IM_FMT_CI)
+     {
+         if (gSP.bgImage.size == G_IM_SIZ_4b)
+-            crc = CRC_Calculate( crc, &gDP.paletteCRC16[gSP.bgImage.palette], 4 );
++            crc = Hash_Calculate( crc, &gDP.paletteCRC16[gSP.bgImage.palette], 4 );
+         else if (gSP.bgImage.size == G_IM_SIZ_8b)
+-            crc = CRC_Calculate( crc, &gDP.paletteCRC256, 4 );
++            crc = Hash_Calculate( crc, &gDP.paletteCRC256, 4 );
+     }
+ 
+     //before we traverse cache, check to see if texture is already bound:
+diff --git a/src/gDP.cpp b/src/gDP.cpp
+index afe65ff..376bdb9 100644
+--- a/src/gDP.cpp
++++ b/src/gDP.cpp
+@@ -751,11 +751,11 @@ void gDPLoadTLUT( u32 tile, u32 uls, u32 ult, u32 lrs, u32 lrt )
+             dest += 4;
+         }
+ 
+-        gDP.paletteCRC16[pal] = CRC_CalculatePalette( 0xFFFFFFFF, &TMEM[256 + (pal << 4)], 16 );
++        gDP.paletteCRC16[pal] = Hash_CalculatePalette(&TMEM[256 + (pal << 4)], 16 );
+         pal++;
+     }
+ 
+-    gDP.paletteCRC256 = CRC_Calculate( 0xFFFFFFFF, gDP.paletteCRC16, 64 );
++    gDP.paletteCRC256 = Hash_Calculate( 0xFFFFFFFF, gDP.paletteCRC16, 64 );
+ 
+     gDP.changed |= CHANGED_TMEM;
+ 
+-- 
+1.7.9.5
+
