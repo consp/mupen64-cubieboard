@@ -3,7 +3,11 @@
 Source code added from AreaScout epository and mupen64plus git repository. 
 The code has been modified to specificly work with the Cubieboard and sunxi processors (specifically sun7i).
 
-The code runs with Framebuffer only. X11 is not tested nor intended to work.
+The code runs with Framebuffer only. X11 is not tested nor intended to work. 
+
+## Mali
+
+The mali directory contains the r4p0 files added to a copy of the sunxi-mali repository. This way it does not interfere with theirs and serves as a snapshot. I can push in request.
  
 ## Required
 To be able to run this, you nee a lot of compiling for SDL-1.2 and SDL-2.0.3. The table contains the flags with which I configured and compiled.
@@ -22,6 +26,8 @@ To be able to run, you might need to enable the SDL-1.2 x11 video driver since s
 | gles2n64 | https://github.com/Nebuleon/mupen64plus-video-gles2n64 |
 | mupen64plus | https://github.com/AreaScout/mupen64plus-odroid |
 | mupen64plus | https://github.com/mupen64plus/ |
+| sunxi-mali | https://github.com/linux-sunxi/sunxi-mali |
+| r4p0 libs | http://forum.odroid.com/viewtopic.php?f=52&t=4956 |
 
 The eglports are from AreaScout, with some modification. The rise driver is changes to use pthread_mutex instead of SDL to avoid SDL2 compatibility and some changes to the Pandora and Odroid egl code has been made to let it run on the CBs.
 
